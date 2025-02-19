@@ -27,7 +27,7 @@ class AuthenticationServer:
 
     def issue_tgt(self, user):
         # Crear un TGT (simulación) cifrado con la clave del AS
-        tgt_data = f"{user}|{time.time()}|TGS".encode()
+        tgt_data = f"{user}|{time.time()}|{10}|TGS".encode()
         tgt = Fernet(as_key).encrypt(tgt_data)
         print(f"[AS] Emitiendo TGT para {user}.")
         return tgt
@@ -37,19 +37,28 @@ class AuthenticationServer:
 class TicketGrantingServer:
     def __init__(self):
         self.key = Fernet(tgs_key)
-
+        self.ticket = ""
     def issue_service_ticket(self, tgt, service):
         try:
+
+            #---------------------------------Mi Codigo--------------------------------------------
             # Descifrar el TGT con la clave del AS
             tgt_data = Fernet(as_key).decrypt(tgt)
-            user, timestamp, realm = tgt_data.decode().split('|')
+            user, timestamp,exp_time, realm = tgt_data.decode().split('|')
+            time.sleep(2)
+            exp =  time.time() - float(timestamp) > int(exp_time)#Booleano que valida si el tiempo ya expiro
             print(f"[TGS] TGT validado para {user}.")
-
-            # Emitir ticket de servicio
-            service_ticket_data = f"{user}|{service}|{time.time()}".encode()
-            service_ticket = Fernet(tgs_key).encrypt(service_ticket_data)
-            print(f"[TGS] Emitiendo ticket de servicio para {user} al servicio {service}.")
-            return service_ticket
+            #---------------------------------Mi Codigo--------------------------------------------
+            if(exp):
+                print("Tu ticket ha expirado :(, intenta de nuevo")
+            else:
+                # Emitir ticket de servicio si el tgt no ha expirado
+                service_ticket_data = f"{user}|{service}|{5}|{time.time()}".encode()
+                self.ticket = service_ticket_data
+                service_ticket = Fernet(tgs_key).encrypt(service_ticket_data)
+                print(f"[TGS] Emitiendo ticket de servicio para {user} al servicio {service}.")
+                return service_ticket
+        
         except Exception as e:
             print(f"[TGS] Error al validar el TGT: {e}")
             return None
@@ -67,8 +76,17 @@ class Client:
 
     def request_service(self, tgt, tgs_server, service):
         print(f"[Cliente] Solicitando acceso al servicio {service}.")
-        service_ticket = tgs_server.issue_service_ticket(tgt, service)
-        if service_ticket:
+
+        service_ticket = tgs_server.issue_service_ticket(tgt,service)
+
+        #---------------------------------Mi Codigo--------------------------------------------
+        #Desencriptar el ticket
+        data = Fernet(tgs_key).decrypt(service_ticket)
+        user, timestamp,exp_time, realm = data.decode().split('|')
+        time.sleep(6)
+        exp = time.time() - float(realm) > int(exp_time)#Booleano que valida si el tiempo ya expiro
+        #---------------------------------Mi Codigo--------------------------------------------
+        if service_ticket and not exp:
             print(f"[Cliente] Acceso concedido al servicio {service}.")
         else:
             print(f"[Cliente] Acceso denegado al servicio {service}.")
