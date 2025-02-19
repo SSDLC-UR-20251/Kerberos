@@ -80,19 +80,30 @@ class Client:
             print(f"[Cliente] Acceso denegado al servicio {service}.")
 
 
+
 # Simulación del flujo completo
 def kerberos_flow():
     # Inicializar servidores
     as_server = AuthenticationServer()
     tgs_server = TicketGrantingServer()
 
-    # Cliente solicita autenticación
-    client = Client('client1')
-    tgt = client.request_authentication(as_server)
+    # Cliente 1 solicita autenticación y servicio
+    #client1 = Client('client1')
+    #tgt1 = client1.request_authentication(as_server)
+    #if tgt1:
+        # Cliente 1 usa el TGT para solicitar un ticket de servicio
+    #    client1.request_service(tgt1, tgs_server, 'FileServer')
 
-    if tgt:
-        # Cliente usa el TGT para solicitar un ticket de servicio
-        client.request_service(tgt, tgs_server, 'FileServer')
+    # Simulación de demora en Cliente 2 (espera de 5 segundos)
+    
+
+    # Cliente 2 solicita autenticación y servicio
+    client2 = Client('client2')
+    time.sleep(15) 
+    tgt2 = client2.request_authentication(as_server)
+    if tgt2:
+        # Cliente 2 usa el TGT para solicitar un ticket de servicio
+        client2.request_service(tgt2, tgs_server, 'FileServer')
 
 
 # Ejecutar la simulación
