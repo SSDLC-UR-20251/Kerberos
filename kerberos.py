@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
+from datetime import datetime, timedelta
 import time
-
 # Simulación de base de datos de usuarios y claves
 users_db = {
     'client1': Fernet.generate_key(),
@@ -27,9 +27,10 @@ class AuthenticationServer:
 
     def issue_tgt(self, user):
         # Crear un TGT (simulación) cifrado con la clave del AS
-        tgt_data = f"{user}|{time.time()}|TGS".encode()
+        expiration_time = datetime.timestamp(datetime.now() + timedelta(seconds=4))  # 4 segundos de expiración
+        tgt_data = f"{user}|{time.time()}|{expiration_time}|TGS".encode()
         tgt = Fernet(as_key).encrypt(tgt_data)
-        print(f"[AS] Emitiendo TGT para {user}.")
+        print(f"[AS] Emitiendo TGT para {user} con expiración en {expiration_time}.")
         return tgt
 
 
@@ -42,8 +43,18 @@ class TicketGrantingServer:
         try:
             # Descifrar el TGT con la clave del AS
             tgt_data = Fernet(as_key).decrypt(tgt)
-            user, timestamp, realm = tgt_data.decode().split('|')
+            user, timestamp,expiration_time, realm = tgt_data.decode().split('|')
+            
+             # Verificar si el TGT ha expirado
+           
+            if time.time() > float(expiration_time):  
+                print(f"[TGS] Error: El TGT para {user} ha expirado.")
+                return None
+        
             print(f"[TGS] TGT validado para {user}.")
+
+            # Generar un tiempo de expiración para el Service Ticket (ejemplo: 5 segundos)
+            service_expiration_time = datetime.timestamp(datetime.now() + timedelta(seconds=5))
 
             # Emitir ticket de servicio
             service_ticket_data = f"{user}|{service}|{time.time()}".encode()
