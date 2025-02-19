@@ -68,6 +68,10 @@ class Client:
     def request_service(self, tgt, tgs_server, service):
         print(f"[Cliente] Solicitando acceso al servicio {service}.")
         service_ticket = tgs_server.issue_service_ticket(tgt, service)
+        content = Fernet(tgs_key).decrypt(service_ticket)
+        client, timeRecord, expirationTime, realm = data.decode().split('|')
+        time.sleep(5)
+        validity = time.time() - float(realm) > int(expirationTime)
         if service_ticket:
             print(f"[Cliente] Acceso concedido al servicio {service}.")
         else:
