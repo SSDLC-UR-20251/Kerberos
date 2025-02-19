@@ -1,5 +1,6 @@
 from cryptography.fernet import Fernet
 import time
+from datetime import datetime, timedelta  ## Importamos datetime para manejar tiempos de expiración
 
 # Simulación de base de datos de usuarios y claves
 users_db = {
@@ -26,10 +27,10 @@ class AuthenticationServer:
             return None
 
     def issue_tgt(self, user):
-        # Crear un TGT (simulación) cifrado con la clave del AS
-        tgt_data = f"{user}|{time.time()}|TGS".encode()
+        expiration_time = datetime.now() + timedelta(seconds=5)  ## Se agrega tiempo de expiración al TGT
+        tgt_data = f"{user}|{time.time()}|{expiration_time.timestamp()}|TGS".encode()
         tgt = Fernet(as_key).encrypt(tgt_data)
-        print(f"[AS] Emitiendo TGT para {user}.")
+        print(f"[AS] Emitiendo TGT para {user} con expiración en {expiration_time}.")
         return tgt
 
 
@@ -40,15 +41,18 @@ class TicketGrantingServer:
 
     def issue_service_ticket(self, tgt, service):
         try:
-            # Descifrar el TGT con la clave del AS
             tgt_data = Fernet(as_key).decrypt(tgt)
-            user, timestamp, realm = tgt_data.decode().split('|')
+            user, timestamp, expiration, realm = tgt_data.decode().split('|')
+            
+            if datetime.now().timestamp() > float(expiration):  ## Validar expiración del TGT
+                print(f"[TGS] TGT de {user} ha expirado. Acceso denegado.")
+                return None
+            
             print(f"[TGS] TGT validado para {user}.")
-
-            # Emitir ticket de servicio
-            service_ticket_data = f"{user}|{service}|{time.time()}".encode()
+            service_expiration_time = datetime.now() + timedelta(seconds=4)  ## Se agrega tiempo de expiración al ticket de servicio
+            service_ticket_data = f"{user}|{service}|{time.time()}|{service_expiration_time.timestamp()}".encode()
             service_ticket = Fernet(tgs_key).encrypt(service_ticket_data)
-            print(f"[TGS] Emitiendo ticket de servicio para {user} al servicio {service}.")
+            print(f"[TGS] Emitiendo ticket de servicio para {user} al servicio {service} con expiración en {service_expiration_time}.")
             return service_ticket
         except Exception as e:
             print(f"[TGS] Error al validar el TGT: {e}")
@@ -69,23 +73,37 @@ class Client:
         print(f"[Cliente] Solicitando acceso al servicio {service}.")
         service_ticket = tgs_server.issue_service_ticket(tgt, service)
         if service_ticket:
-            print(f"[Cliente] Acceso concedido al servicio {service}.")
+            self.use_service(service_ticket, service)  ## Ahora se verifica la expiración del ticket antes de usar el servicio
         else:
             print(f"[Cliente] Acceso denegado al servicio {service}.")
+    
+    def use_service(self, service_ticket, service):
+        try:
+            service_ticket_data = Fernet(tgs_key).decrypt(service_ticket).decode()
+            user, service_name, timestamp, expiration = service_ticket_data.split('|')
+            
+            if datetime.now().timestamp() > float(expiration):  ## Validar expiración del Service Ticket
+                print(f"[Cliente] El ticket para el servicio {service_name} ha expirado. Acceso denegado.")
+                return
+            
+            print(f"[Cliente] Accediendo al servicio {service_name} correctamente.")
+        except Exception as e:
+            print(f"[Cliente] Error al validar el ticket de servicio: {e}")
 
 
 # Simulación del flujo completo
 def kerberos_flow():
-    # Inicializar servidores
     as_server = AuthenticationServer()
     tgs_server = TicketGrantingServer()
 
-    # Cliente solicita autenticación
     client = Client('client1')
     tgt = client.request_authentication(as_server)
 
     if tgt:
-        # Cliente usa el TGT para solicitar un ticket de servicio
+        client.request_service(tgt, tgs_server, 'FileServer')
+        
+        time.sleep(20)  ## Espera de 20 segundos para probar la expiración del ticket
+        print("\n[Prueba] Realizando segunda solicitud después de 20 segundos...")
         client.request_service(tgt, tgs_server, 'FileServer')
 
 
